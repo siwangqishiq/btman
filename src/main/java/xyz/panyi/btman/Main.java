@@ -1,20 +1,21 @@
 package xyz.panyi.btman;
 
 import org.jsoup.Jsoup;
+import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.nodes.Node;
 import org.jsoup.select.Elements;
-import org.jsoup.select.NodeFilter;
 import xyz.panyi.btman.model.Film;
+import xyz.panyi.btman.util.LogUtil;
+import xyz.panyi.btman.util.Utils;
 
 import java.io.IOException;
 
 public class Main {
     public static void main(String[] args){
         LogUtil.log("btman bootstrap...");
-        //parse(Config.RES);
-        parse("https://nm.nmcsym.net/pw/thread.php?fid=83&page=245");
+        parse(Config.RES);
+        //parse("https://nm.nmcsym.net/pw/thread.php?fid=83&page=245");
     }
 
     public static void parse(String filmUrl){
@@ -44,6 +45,12 @@ public class Main {
                 LogUtil.log(name + "  " + href);
 
                 readFilmDetail(film , Config.RES_HOST+"/"+href);
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }//end for each
         } catch (IOException e) {
             e.printStackTrace();
@@ -51,32 +58,89 @@ public class Main {
     }
 
     public static void readFilmDetail(final Film film, String url){
-        LogUtil.log(url);
+        LogUtil.log("fetch url : " + url);
         try {
             Document document = Jsoup.connect(url).userAgent(Config.UA).get();
 
             Element contentElement= document.getElementById("read_tpc");
-            Elements imgs = contentElement.select("img");
-            for(Element img : imgs){
-                LogUtil.log(img.outerHtml());
-            }
-            //LogUtil.log(contentElement.html());
+            readImages(film , contentElement);
+            readMagnet(film , contentElement);
+            readDetail(film , contentElement);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static void readOnePage(final String url){
-        LogUtil.log("read page : " + url);
+    private static void readMagnet(final Film film , Element contentElement){
+        Elements aElems = contentElement.select("a");
+        if(aElems == null || aElems.size() == 0)
+            return;
+
+        String magnetWeburl = null;
+        for(Element link : aElems){
+            //www.bitsdts
+            String url = link.attr("href");
+            if(url.contains("www.bitsdts")){
+                magnetWeburl = url;
+                break;
+            }
+        }
+
+        if(magnetWeburl == null)
+            return;
+
+        film.setMagnetWeburl(magnetWeburl);
+        LogUtil.log("fetch magnet: " + magnetWeburl);
         try {
-            Document document = Jsoup.connect(url).get();
-            Elements links = document.select("a[href]");
-            for (Element link : links) {
-                LogUtil.log("link : " + link.attr("href"));
-                LogUtil.log("text : " + link.text());
-            }//end for each
+            Document doc = Jsoup.connect(magnetWeburl).userAgent(Config.UA).get();
+            Elements btnElements = doc.getElementsByClass("uk-button");
+            for(Element element : btnElements){
+                String hrefValue = element.attr("href");
+                if(hrefValue != null && hrefValue.startsWith("magnet:")){
+                    LogUtil.log("magnet : " + hrefValue);
+                    film.setMagnet(hrefValue);
+                    break;
+                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void readDetail(final Film film , Element contentElement){
+        Element contentE = contentElement.getElementById("read_tpc");
+
+        Elements all = contentE.getAllElements();
+        for(Element e : all){
+            if(e.tagName().equals("img")){
+                e.remove();
+            }else if(e.tagName().equals("a")){
+                e.remove();
+            }
+        }
+
+        String content = all.html()
+                .replaceAll("<br>","\n")
+                .replaceAll("&nbsp;","")
+                .trim();
+
+        content = Utils.replaceLineBlanks(content);
+        if(!StringUtil.isBlank(film.getMagnetWeburl()) && content.endsWith(film.getMagnetWeburl())){
+            content = content.substring(0 , content.length() - film.getMagnetWeburl().length()).trim();
+        }
+        LogUtil.log(content);
+    }
+
+    private static void readImages(final Film film , Element contentElement){
+        Elements imgs = contentElement.select("img");
+        for(Element img : imgs){
+            String imageUrl = img.attr("src");
+            if(StringUtil.isBlank(imageUrl) || imageUrl.endsWith("42600001974.gif")){//过滤宣传二维码图片
+                continue;
+            }
+
+            film.getImages().add(imageUrl);
+            LogUtil.log("image : " + imageUrl);
         }
     }
 }// end class
