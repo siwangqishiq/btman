@@ -8,6 +8,7 @@ import java.util.List;
  *
  */
 public class Film {
+    private long id;
     private String name;
     private String href;
     private String extra;
@@ -15,6 +16,27 @@ public class Film {
     private String magnet;
     private List<String> images = new ArrayList<String>();
     private String magnetWeburl;
+    private long updateTime;
+
+    public Film(){
+        updateTime = System.currentTimeMillis();
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
+    }
+
+    public long getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(long updateTime) {
+        this.updateTime = updateTime;
+    }
 
     public String getMagnetWeburl() {
         return magnetWeburl;
